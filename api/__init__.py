@@ -10,7 +10,7 @@ import pandas as pd
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-from src.predict import cargar_artifact
+from api.predictor import Predictor
 
 
 logging.basicConfig(

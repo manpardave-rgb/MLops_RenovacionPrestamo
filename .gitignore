@@ -21,3 +21,25 @@ mlflow_data/
 
 # Variables de entorno con claves
 .env
+
+
+# Cobertura de pruebas
+.coverage
+coverage.xml
+htmlcov/
+
+# Variables de entorno adicionales
+.env.*
+
+# Archivos de sistema y editores
+.DS_Store
+.vscode/
+.idea/
+
+
+# Python compilados y cachés
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+**/.pytest_cache/
