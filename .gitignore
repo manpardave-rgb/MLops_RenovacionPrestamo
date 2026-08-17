@@ -1,0 +1,23 @@
+# Python compilados y cachés
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Entornos virtuales
+.venv/
+venv/
+env/
+
+# Datos reales sensibles
+data/*.csv
+!data/.gitkeep
+
+# Artefactos y versiones locales generados
+artifacts/*
+!artifacts/.gitkeep
+mlruns/
+mlflow_data/
+
+# Variables de entorno con claves
+.env
