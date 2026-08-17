@@ -1,0 +1,33 @@
+# Dockerfile.trainer — Imagen del servicio de entrenamiento
+#
+# Se ejecuta UNA VEZ al arrancar docker compose.
+# Responsabilidad: cargar/generar datos + entrenar + validar (quality gate).
+# Si validate_model.py falla (exit 1), el contenedor falla
+# y Docker Compose evita que la API arranque con un modelo malo.
+FROM python:3.10-slim
+
+LABEL description="Trainer: preprocesa, entrena y valida el modelo de Renovación de Préstamo"
+WORKDIR /app
+
+# Dependencias del sistema
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+# Dependencias Python
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Código fuente del pipeline
+COPY src/ ./src/
+
+# Crear directorios de salida (los volúmenes Docker los montarán)
+RUN mkdir -p artifacts data mlruns
+
+# Comando: (genera datos de respaldo si faltan) → entrena → valida
+# Si validate_model.py falla (exit 1), el contenedor falla con exit 1
+# Docker Compose detecta el fallo y la API no arranca
+CMD python src/generate_data.py && \
+    python src/train_pipeline.py && \
+    python src/validate_model.py && \
+    echo "✓ Trainer completado exitosamente"

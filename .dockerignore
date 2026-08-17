@@ -1,0 +1,22 @@
+# .dockerignore — excluir archivos del contexto Docker
+__pycache__/
+*.pyc
+*.pyo
+.git/
+.dvc/
+mlruns/
+mlartifacts/
+notebooks/
+*.log
+*.ipynb
+.env*
+tests/
+.github/
+terraform/
+docs/
+*.md
+gcp-sa-key.json
+# Artefactos intermedios (se regeneran en runtime dentro del contenedor)
+artifacts/*.pkl
+artifacts/*.json
+data/*.csv
