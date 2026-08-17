@@ -11,11 +11,16 @@ rollback).
 
 ```
 RenovacionPrestamo/
+├── .github/
+│   └── workflows/
+│       └── ci-cd.yml          <- pipeline de integración y despliegue continuo
 ├── api/                       <- servicio FastAPI
 │   ├── app.py                 <- endpoints /, /health, /predecir
 │   ├── predictor.py           <- carga modelo.pkl y predice (singleton)
-│   ├── schemas.py              <- modelos Pydantic (entrada/salida)
+│   ├── schemas.py             <- modelos Pydantic (entrada/salida)
 │   └── __init__.py
+├── notebooks/                 <- entregables de ciencia de datos
+│   └── Caso Renovación de Préstamo.ipynb <- modelo y lógica base provista por el Data Scientist
 ├── src/
 │   ├── preprocessing.py       <- feature engineering (rename, log1p, imputación, one-hot, Cluster K-Means)
 │   ├── generate_data.py       <- usa el CSV real si existe; si no, genera uno sintético
@@ -26,15 +31,17 @@ RenovacionPrestamo/
 │   ├── test_data.py  test_model.py  test_pipeline.py
 │   └── smoke/test_smoke.py    <- verifica el stack ya levantado
 ├── data/
-│   └── Dataset_Renovacion_prestamo.csv   <- dataset real (no se sube a Docker, ver .dockerignore)
-├── Dockerfile                 <- imagen de la API
-├── Dockerfile.trainer         <- imagen del trainer
-├── docker-compose.preprod.yml <- stack de 3 servicios (mlflow, trainer, api)
-├── deploy.sh                  <- despliegue + rollback
-├── Makefile                   <- atajos (make preprod-up, make smoke...)
-├── .env.example / .env.preprod
+│   └── Dataset_Renovacion_prestamo.csv   <- dataset real
 ├── .dockerignore
-└── requirements.txt
+├── .env.example                <- plantilla de variables de entorno requeridas
+├── .gitignore                  <- excluye .coverage, pycache, .ipynb_checkpoints, etc.
+├── deploy.sh                   <- despliegue + rollback
+├── docker-compose.preprod.yml  <- stack de 3 servicios (mlflow, trainer, api)
+├── Dockerfile                  <- imagen de la API
+├── Dockerfile.trainer          <- imagen del trainer
+├── Makefile                    <- atajos (make preprod-up, make smoke...)
+├── README.md                   <- documentación del proyecto
+└── requirements.txt            <- dependencias de Python
 ```
 
 ## Diferencias intencionales frente al notebook
