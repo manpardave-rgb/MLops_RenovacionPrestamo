@@ -18,11 +18,19 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: '3.10'
+        cache: 'pip'
 
     - name: Instalar dependencias
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt
+        # requirements-monitoring.txt incluye requirements.txt + evidently,
+        # necesario para tests/test_monitoreo.py. Las imágenes Docker (más
+        # abajo) siguen usando solo requirements.txt, sin evidently.
+        pip install -r requirements-monitoring.txt
+
+    - name: Linting del módulo de monitoreo (src/monitoring)
+      run: |
+        flake8 src/monitoring/ --max-line-length=100 --ignore=E203,W503,D100,D104
 
     - name: Ejecutar pruebas unitarias y Cobertura
       run: |

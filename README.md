@@ -1,4 +1,3 @@
-Proyecto Final del curso MLOps — Pipeline end-to-end para predicción de renovación de línea de crédito bancaria.
 # MLOps — Renovación de Préstamo (Banco Wiesse)
 
 Flujo end-to-end de pre-producción y despliegue para el modelo de propensión
@@ -14,10 +13,11 @@ RenovacionPrestamo/
 ├── .github/
 │   └── workflows/
 │       └── ci-cd.yml          <- pipeline de integración y despliegue continuo
+│       └── monitoreo_drift.yml         
 ├── api/                       <- servicio FastAPI
 │   ├── app.py                 <- endpoints /, /health, /predecir
 │   ├── predictor.py           <- carga modelo.pkl y predice (singleton)
-│   ├── schemas.py             <- modelos Pydantic (entrada/salida)
+│   ├── schemas.py              <- modelos Pydantic (entrada/salida)
 │   └── __init__.py
 ├── notebooks/                 <- entregables de ciencia de datos
 │   └── Caso Renovación de Préstamo.ipynb <- modelo y lógica base provista por el Data Scientist
@@ -26,22 +26,29 @@ RenovacionPrestamo/
 │   ├── generate_data.py       <- usa el CSV real si existe; si no, genera uno sintético
 │   ├── train_pipeline.py      <- undersampling + GridSearchCV RandomForest -> artifacts/
 │   ├── validate_model.py      <- quality gate (recall >= umbral)
-│   └── manage_versions.py     <- Model Registry (Staging/Production)
+│   ├── manage_versions.py     <- Model Registry (Staging/Production)
+│   └── monitoring/            <- monitoreo de drift en producción (EvidentlyAI)
+│       ├── config.py                  <- rutas, features monitoreadas, umbrales de alerta
+│       ├── 01_preparar_datos.py       <- separa referencia (pasado) vs producción (lote reciente) por MES
+│       ├── 02_evaluar_baseline.py     <- predice con modelo.pkl y mide F1 en ambos lotes
+│       ├── 03_reporte_drift.py        <- 3 reportes HTML EvidentlyAI (drift, calidad, performance)
+│       ├── 04_pipeline_monitoreo.py   <- alertas + quality gate (exit 1 si CRÍTICO)
+│       ├── 05_visualizacion_drift.py  <- histogramas KS + gráfico PSI
+│       └── run_monitoreo.py           <- orquestador: ejecuta los 5 pasos
 ├── tests/                     <- pytest (unitarios + smoke)
-│   ├── test_data.py  test_model.py  test_pipeline.py
+│   ├── test_data.py  test_model.py  test_pipeline.py  test_monitoreo.py
 │   └── smoke/test_smoke.py    <- verifica el stack ya levantado
 ├── data/
-│   └── Dataset_Renovacion_prestamo.csv   <- dataset real
-├── .dockerignore
-├── .env.example                <- plantilla de variables de entorno requeridas
-├── .gitignore                  <- excluye .coverage, pycache, .ipynb_checkpoints, etc.
-├── deploy.sh                   <- despliegue + rollback
-├── docker-compose.preprod.yml  <- stack de 3 servicios (mlflow, trainer, api)
-├── Dockerfile                  <- imagen de la API
-├── Dockerfile.trainer          <- imagen del trainer
-├── Makefile                    <- atajos (make preprod-up, make smoke...)
-├── README.md                   <- documentación del proyecto
-└── requirements.txt            <- dependencias de Python
+│   └── Dataset_Renovacion_prestamo.csv   <- dataset real (no se sube a Docker, ver .dockerignore)
+├── reportes/                   <- reportes HTML/PNG/JSON del monitoreo de drift (generados)
+├── Dockerfile                 <- imagen de la API
+├── Dockerfile.trainer         <- imagen del trainer
+├── docker-compose.preprod.yml <- stack de 3 servicios (mlflow, trainer, api)
+├── deploy.sh                  <- despliegue + rollback
+├── Makefile                   <- atajos (make preprod-up, make smoke, make monitoreo...)
+├── .env.example / .env.preprod
+├── .dockerignore / .gitignore
+└── requirements.txt
 ```
 
 ## Diferencias intencionales frente al notebook
@@ -127,6 +134,61 @@ bash deploy.sh v1.0.0
 
 `deploy.sh` construye las imágenes, levanta el stack, corre los smoke
 tests y, si fallan, hace rollback automático a la versión anterior.
+
+## Monitoreo de drift en producción (EvidentlyAI)
+
+> **Nota de dependencias:** el monitoreo usa EvidentlyAI, que vive en
+> `requirements-monitoring.txt` (no en `requirements.txt`) para que las
+> imágenes Docker de la API y del trainer sigan livianas — no lo necesitan
+> en runtime. Instálalo con `make install-monitoring` antes de correr lo
+> de abajo, o `pip install -r requirements-monitoring.txt`.
+
+El modelo se entrena con datos de `2015-01` a `2015-06`. Para vigilar que
+siga siendo confiable cuando llegan clientes de meses más recientes, el
+módulo `src/monitoring/` compara ese periodo de **referencia** contra los
+meses `2015-07` a `2015-09` como lote de **producción** (corte real por
+`MES`, no drift simulado), y mide dos cosas:
+
+1. **Data drift**: ¿cambió la distribución de las variables de entrada
+   (uso de línea, saldo, edad, región, etc.) respecto a con qué se
+   entrenó el modelo? (EvidentlyAI + PSI + test de Kolmogórov-Smirnov)
+2. **Degradación de performance**: ¿cayó el F1 del modelo en el lote
+   reciente respecto al F1 con el que fue validado?
+
+```bash
+# Pipeline completo (5 pasos) — requiere haber corrido `make train` antes,
+# o lo entrena automáticamente si no encuentra artifacts/modelo.pkl
+make monitoreo
+# o con nombre de lote: make monitoreo LOTE=2015_Q3
+
+# Pasos individuales
+make monitor-paso1   # separa referencia vs producción por MES
+make monitor-paso2   # evalúa el modelo ya entrenado en ambos lotes
+make monitor-paso3   # genera reportes HTML interactivos (EvidentlyAI)
+make monitor-paso4   # alertas + quality gate (falla si el estado es CRÍTICO)
+make monitor-paso5   # gráficos comparativos KS + PSI
+```
+
+Salidas en `reportes/`:
+
+| Archivo | Contenido |
+|---|---|
+| `01_data_drift.html` | Drift por feature (interactivo) |
+| `02_data_quality.html` | Nulos, duplicados, outliers |
+| `03_model_performance.html` | Degradación de F1/Recall/Precision |
+| `04_distribuciones_comparativas.png` | Histogramas referencia vs producción con KS/PSI |
+| `05_psi_barras.png` | PSI por feature con umbrales de alerta/crítico |
+| `<timestamp>_<lote>_resumen.json` | Resumen de alertas para integraciones/CI |
+
+**Umbrales de alerta** (`src/monitoring/config.py`): más de 30% de
+features con drift, o una caída de F1 mayor a 10% (alerta) / 15%
+(crítico, dispara `sys.exit(1)` para detener el pipeline de CI/CD).
+
+**Automatización**: `.github/workflows/monitoreo_drift.yml` corre este
+pipeline automáticamente cada **lunes a las 8am UTC**, además de en cada
+push que toque `src/monitoring/` y de forma manual desde la pestaña
+*Actions* de GitHub. Los reportes quedan disponibles como artefactos
+descargables del workflow (30 días de retención).
 
 ## Gestión de versiones del modelo (MLflow Model Registry)
 

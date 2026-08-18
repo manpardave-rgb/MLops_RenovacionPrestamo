@@ -20,3 +20,4 @@ gcp-sa-key.json
 artifacts/*.pkl
 artifacts/*.json
 data/*.csv
+reportes/

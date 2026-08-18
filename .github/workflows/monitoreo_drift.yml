@@ -1,0 +1,140 @@
+# .github/workflows/monitoreo_drift.yml
+# Pipeline de monitoreo de drift — se ejecuta automáticamente cada lunes a las 8am UTC.
+# También se puede ejecutar manualmente desde la pestaña Actions de GitHub.
+#
+# Flujo:
+#   1. lint-and-test    → flake8 + pytest tests/test_monitoreo.py
+#   2. monitoreo-drift  → entrenar (si hace falta) + correr el pipeline de monitoreo
+#   3. Si hay drift/degradación CRÍTICA → el job falla (sys.exit(1)) y GitHub notifica
+
+name: Monitoreo Drift — Renovación de Préstamo
+
+on:
+  # Ejecución automática: todos los lunes a las 8am UTC
+  schedule:
+    - cron: '0 8 * * 1'
+
+  # Ejecución manual desde la UI de GitHub Actions
+  workflow_dispatch:
+    inputs:
+      nombre_lote:
+        description: 'Nombre del lote a monitorear'
+        required: false
+        default: 'lote_manual'
+
+  # Ejecución en cada push a main que toque el código de monitoreo
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'src/monitoring/**'
+      - 'src/preprocessing.py'
+      - 'src/train_pipeline.py'
+      - 'tests/test_monitoreo.py'
+      - 'requirements.txt'
+      - 'requirements-monitoring.txt'
+
+env:
+  PYTHON_VERSION: '3.10'
+
+jobs:
+
+  # ── JOB 1: Lint + Tests ────────────────────────────────────────────────────
+  lint-and-test:
+    name: Lint + Tests del monitoreo
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Instalar dependencias
+        run: pip install -r requirements-monitoring.txt
+
+      - name: Linting con flake8
+        run: flake8 src/monitoring/ --max-line-length=100 --ignore=E203,W503,D100,D104
+
+      - name: Tests unitarios de monitoreo
+        run: pytest tests/test_monitoreo.py -v --tb=short
+
+  # ── JOB 2: Monitoreo de drift ──────────────────────────────────────────────
+  monitoreo-drift:
+    name: Pipeline de Monitoreo
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Instalar dependencias
+        run: pip install -r requirements-monitoring.txt
+
+      - name: Crear directorios
+        run: mkdir -p data artifacts reportes
+
+      - name: Entrenar modelo (si no hay uno versionado en el repo)
+        run: |
+          if [ ! -f artifacts/modelo.pkl ]; then
+            python src/generate_data.py
+            python src/train_pipeline.py
+          else
+            echo "artifacts/modelo.pkl ya existe, se reutiliza."
+          fi
+
+      - name: Paso 1 — Separar referencia vs producción
+        run: python src/monitoring/01_preparar_datos.py
+
+      - name: Paso 2 — Evaluar baseline de performance
+        run: python src/monitoring/02_evaluar_baseline.py
+
+      - name: Paso 3 — Generar reportes EvidentlyAI
+        run: python src/monitoring/03_reporte_drift.py
+
+      - name: Paso 4 — Pipeline monitoreo con alertas (quality gate)
+        run: |
+          LOTE="${{ github.event.inputs.nombre_lote || 'ci_automatico' }}"
+          python src/monitoring/04_pipeline_monitoreo.py "$LOTE"
+        # Si el estado es CRITICO → exit(1) → el job falla → GitHub notifica
+
+      - name: Paso 5 — Generar visualizaciones de distribuciones
+        run: python src/monitoring/05_visualizacion_drift.py
+
+      - name: Subir reportes como artefactos de GitHub Actions
+        if: always()   # subir incluso si el quality gate falló
+        uses: actions/upload-artifact@v4
+        with:
+          name: reportes-drift-${{ github.run_number }}
+          path: |
+            reportes/*.html
+            reportes/*.png
+            reportes/*.json
+          retention-days: 30
+
+      - name: Resumen del monitoreo en GitHub Actions
+        if: always()
+        run: |
+          echo "## 📊 Reporte de Monitoreo de Drift — Renovación de Préstamo" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Archivo | Descripción |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|-------------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 01_data_drift.html | Drift en todas las features |" >> $GITHUB_STEP_SUMMARY
+          echo "| 02_data_quality.html | Calidad de datos |" >> $GITHUB_STEP_SUMMARY
+          echo "| 03_model_performance.html | Degradación del modelo |" >> $GITHUB_STEP_SUMMARY
+          echo "| 04_distribuciones_comparativas.png | Histogramas KS |" >> $GITHUB_STEP_SUMMARY
+          echo "| 05_psi_barras.png | PSI por feature |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          LAST_JSON=$(ls reportes/*_resumen.json 2>/dev/null | tail -1)
+          if [ -n "$LAST_JSON" ]; then
+            echo "### Último resumen JSON" >> $GITHUB_STEP_SUMMARY
+            echo '```json' >> $GITHUB_STEP_SUMMARY
+            cat "$LAST_JSON" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi

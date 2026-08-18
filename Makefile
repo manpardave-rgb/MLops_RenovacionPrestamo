@@ -45,3 +45,22 @@ rollback:
 
 versions:
 	python src/manage_versions.py
+
+# ── Monitoreo de drift ───────────────────────────────────────────────────────
+monitoreo:
+	python src/monitoring/run_monitoreo.py $(LOTE)
+
+monitor-paso1:
+	python src/monitoring/01_preparar_datos.py
+
+monitor-paso2:
+	python src/monitoring/02_evaluar_baseline.py
+
+monitor-paso3:
+	python src/monitoring/03_reporte_drift.py
+
+monitor-paso4:
+	python src/monitoring/04_pipeline_monitoreo.py $(LOTE)
+
+monitor-paso5:
+	python src/monitoring/05_visualizacion_drift.py
