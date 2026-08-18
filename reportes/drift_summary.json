@@ -1,0 +1,6 @@
+{
+  "drift_detectado": true,
+  "features_con_drift": 1,
+  "share_drifted": 0.0526,
+  "total_features": 19
+}

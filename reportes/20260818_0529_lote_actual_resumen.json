@@ -1,0 +1,14 @@
+{
+  "timestamp": "20260818_0529",
+  "lote": "lote_actual",
+  "drift_detectado": true,
+  "drift_features": "5%",
+  "drift_n": 1.0,
+  "drift_total": 19,
+  "f1_ref": 0.1401,
+  "f1_prod": 0.1394,
+  "decay_pct": 0.5,
+  "estado": "OK",
+  "alertas": [],
+  "reporte_html": "/workspaces/MLops_RenovacionPrestamo/reportes/20260818_0529_lote_actual_drift.html"
+}
