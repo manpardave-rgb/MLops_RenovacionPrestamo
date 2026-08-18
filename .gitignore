@@ -43,4 +43,5 @@ __pycache__/
 *$py.class
 .pytest_cache/
 **/.pytest_cache/
-
+**/__pycache__/
+*.pyc
