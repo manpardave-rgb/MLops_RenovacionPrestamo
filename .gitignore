@@ -30,6 +30,7 @@ htmlcov/
 
 # Variables de entorno adicionales
 .env.*
+!.env.preprod
 
 # Archivos de sistema y editores
 .DS_Store

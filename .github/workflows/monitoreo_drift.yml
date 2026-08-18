@@ -31,7 +31,6 @@ on:
       - 'src/train_pipeline.py'
       - 'tests/test_monitoreo.py'
       - 'requirements.txt'
-      - 'requirements-monitoring.txt'
 
 env:
   PYTHON_VERSION: '3.10'
@@ -52,7 +51,7 @@ jobs:
           cache: 'pip'
 
       - name: Instalar dependencias
-        run: pip install -r requirements-monitoring.txt
+        run: pip install -r requirements.txt
 
       - name: Linting con flake8
         run: flake8 src/monitoring/ --max-line-length=100 --ignore=E203,W503,D100,D104
@@ -75,7 +74,7 @@ jobs:
           cache: 'pip'
 
       - name: Instalar dependencias
-        run: pip install -r requirements-monitoring.txt
+        run: pip install -r requirements.txt
 
       - name: Crear directorios
         run: mkdir -p data artifacts reportes
