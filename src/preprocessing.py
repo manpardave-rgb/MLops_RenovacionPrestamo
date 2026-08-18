@@ -164,18 +164,25 @@ def load_stats() -> dict:
         return json.load(f)
 
 
-def transform_one(datos: dict, stats: Optional[dict] = None) -> pd.DataFrame:
-    """Aplica el MISMO preprocesamiento a un registro nuevo (inferencia).
+def transform_df(df_raw: pd.DataFrame, stats: Optional[dict] = None) -> pd.DataFrame:
+    """Aplica el MISMO preprocesamiento ajustado en train a un DataFrame nuevo
+    (uno o varios registros): test set, batch de inferencia, etc.
 
-    `datos` debe traer las columnas originales del dataset crudo (antes del
-    renombrado), con los mismos nombres que produce la API/el cliente.
+    A diferencia de `fit_transform`, esta función NUNCA recalcula medias,
+    medianas, modas ni el K-Means: solo aplica las estadísticas ya
+    guardadas en `artifacts/preprocess.json` / `artifacts/kmeans.pkl`, para
+    no filtrar información del set sobre el que se llama (p. ej. el test
+    set) hacia el preprocesamiento.
+
+    `df_raw` debe traer las columnas originales del dataset crudo (antes
+    del renombrado), con los mismos nombres que produce la API/el cliente.
     """
     import pickle
 
     if stats is None:
         stats = load_stats()
 
-    df = pd.DataFrame([datos])
+    df = df_raw.copy().reset_index(drop=True)
     df = _rename_and_cap(df)
     df = _log_transform(df)
 
@@ -211,3 +218,11 @@ def transform_one(datos: dict, stats: Optional[dict] = None) -> pd.DataFrame:
             df_final[col] = 0
     X = df_final[stats["feature_order"]]
     return X
+
+
+def transform_one(datos: dict, stats: Optional[dict] = None) -> pd.DataFrame:
+    """Aplica el MISMO preprocesamiento a un registro nuevo (inferencia).
+
+    Envoltorio de `transform_df` para un único registro (dict -> 1 fila).
+    """
+    return transform_df(pd.DataFrame([datos]), stats)

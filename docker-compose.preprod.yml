@@ -20,8 +20,6 @@ services:
       --backend-store-uri sqlite:////mlruns/mlflow.db
       --default-artifact-root file:///mlruns
       --host 0.0.0.0 --port 5000
-    environment:
-      - MLFLOW_SERVER_ALLOWED_HOSTS=*
     ports:
       - '${MLFLOW_PORT:-5000}:5000'
     volumes:
@@ -59,6 +57,7 @@ services:
   # ── Servicio 3: API FastAPI ───────────────────────────────────────────────
   # Arranca solo cuando el trainer completó exitosamente.
   api:
+    image: prestamo-renovacion-api:latest  # nombre fijo: deploy.sh y "make rollback" lo taggean/referencian
     build:
       context: .
       dockerfile: Dockerfile

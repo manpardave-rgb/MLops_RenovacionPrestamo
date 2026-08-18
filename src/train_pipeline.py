@@ -30,7 +30,7 @@ from sklearn.metrics import (accuracy_score, classification_report,
 from sklearn.model_selection import GridSearchCV, train_test_split
 
 from generate_data import DATA_PATH
-from preprocessing import fit_transform
+from preprocessing import TARGET, fit_transform, transform_df
 
 ARTIFACTS = Path("artifacts")
 MODEL_PATH = ARTIFACTS / "modelo.pkl"
@@ -76,16 +76,31 @@ def undersample(X_train: pd.DataFrame, y_train: pd.Series):
 
 
 def train(df: pd.DataFrame) -> dict:
-    """Preprocesa, aplica undersampling, corre GridSearchCV y guarda artefactos."""
-    X, y, _stats = fit_transform(df)
+    """Split train/test, preprocesa (ajustado SOLO sobre train), aplica
+    undersampling, corre GridSearchCV y guarda artefactos.
 
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=TEST_SIZE, random_state=RANDOM_STATE, stratify=y
+    IMPORTANTE: el split se hace sobre el dataset crudo, ANTES de llamar a
+    `fit_transform`. Así, las medias/medianas/modas de imputación, las
+    columnas one-hot y el K-Means se ajustan únicamente con filas de train,
+    sin fuga de información del test set hacia el preprocesamiento.
+    """
+    train_raw, test_raw = train_test_split(
+        df, test_size=TEST_SIZE, random_state=RANDOM_STATE, stratify=df[TARGET]
     )
+
+    X_train, y_train, stats = fit_transform(train_raw)
+    X_test = transform_df(test_raw, stats)
+    y_test = test_raw[TARGET].reset_index(drop=True)
+
     X_train_u, y_train_u = undersample(X_train, y_train)
 
+    # Nota: NO se incluye roc_auc en este dict. make_scorer(roc_auc_score) sin
+    # needs_proba=True/response_method="predict_proba" le pasa etiquetas
+    # duras (0/1) a roc_auc_score en lugar de probabilidades, lo que da un
+    # "AUC" incorrecto (en la práctica, equivalente a balanced accuracy).
+    # El AUC real se calcula más abajo con predict_proba sobre el modelo
+    # ya seleccionado por GridSearchCV (ver y_proba).
     scoring = {
-        "roc_auc": make_scorer(roc_auc_score),
         "recall_pos": make_scorer(recall_score, pos_label=1),
         "precision_pos": make_scorer(precision_score, pos_label=1),
         "f1_pos": make_scorer(f1_score, pos_label=1),
@@ -111,15 +126,16 @@ def train(df: pd.DataFrame) -> dict:
         best_model = grid.best_estimator_
 
         y_pred = best_model.predict(X_test)
+        y_proba = best_model.predict_proba(X_test)[:, 1]  # probabilidades, no etiquetas
         metricas = {
             "f1": round(f1_score(y_test, y_pred, pos_label=1), 4),
             "recall": round(recall_score(y_test, y_pred, pos_label=1), 4),
             "precision": round(precision_score(y_test, y_pred, pos_label=1), 4),
             "accuracy": round(accuracy_score(y_test, y_pred), 4),
-            "roc_auc": round(roc_auc_score(y_test, y_pred), 4),
+            "roc_auc": round(roc_auc_score(y_test, y_proba), 4),
             "params": grid.best_params_,
             "recall_minimo": RECALL_MIN,
-            "n_features": X.shape[1],
+            "n_features": X_train.shape[1],
             "n_train_rows": len(X_train_u),
         }
 
