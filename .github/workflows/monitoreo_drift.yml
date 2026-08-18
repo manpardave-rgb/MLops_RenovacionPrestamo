@@ -32,6 +32,7 @@ on:
       - 'tests/test_monitoreo.py'
       - 'requirements.txt'
 
+
 env:
   PYTHON_VERSION: '3.10'
 
@@ -41,6 +42,7 @@ jobs:
   lint-and-test:
     name: Lint + Tests del monitoreo
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@v4
@@ -63,6 +65,7 @@ jobs:
   monitoreo-drift:
     name: Pipeline de Monitoreo
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: lint-and-test
 
     steps:

@@ -9,6 +9,9 @@ on:
 jobs:
   test-and-quality-gate:
     runs-on: ubuntu-latest
+    timeout-minutes: 25  # tu pipeline normal tarda pocos minutos; evita quemar
+                          # las 6h de límite por defecto si algo se cuelga (p.ej.
+                          # un healthcheck de docker compose que nunca pasa)
 
     steps:
     - name: Checkout del codigo
@@ -23,6 +26,8 @@ jobs:
     - name: Instalar dependencias
       run: |
         python -m pip install --upgrade pip
+        # requirements.txt,
+        # necesario para tests/test_monitoreo.py. 
         pip install -r requirements.txt
 
     - name: Linting del módulo de monitoreo (src/monitoring)
